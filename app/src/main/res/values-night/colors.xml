@@ -9,6 +9,6 @@
     <color name="light_black">#121212</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!--    Light and Night Colors-->
-    <color name="layout_bg">#FFFFFFFF</color>
+<!--    Light and Night Colors-->
+    <color name="layout_bg">#121212</color>
 </resources>
