@@ -1,29 +1,127 @@
 package com.foxhole.runningapp.ui
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
+import androidx.lifecycle.Observer
 import com.foxhole.runningapp.R
 import com.foxhole.runningapp.databinding.ActivityRunBinding
+import com.foxhole.runningapp.services.Polyline
+import com.foxhole.runningapp.services.TrackingService
+import com.foxhole.runningapp.utils.Constants.ACTION_PAUSE_SERVICE
+import com.foxhole.runningapp.utils.Constants.ACTION_START_OR_RESUME_SERVICE
+import com.foxhole.runningapp.utils.Constants.POLYLINE_COLOR
+import com.foxhole.runningapp.utils.Constants.POLYLINE_WIDTH
+import com.foxhole.runningapp.utils.TrackingUtility
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.PolylineOptions
 
 class RunActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityRunBinding
     private var map: GoogleMap? = null
 
+    private var isTracking = false
+    private var pathPoint = mutableListOf<Polyline>()
+    private var curTimeInMillis = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityRunBinding.inflate(layoutInflater)
         val view = binding.root
         setContentView(view)
-        makeFullScreen()
         binding.mapView.onCreate(savedInstanceState)
 
         binding.mapView.getMapAsync {
             map = it
+            addAllPolyLines()
+        }
+
+        binding.btnToggleRun.setOnClickListener {
+            toggleRun()
+        }
+        subscribeToObserves()
+    }
+
+    private fun subscribeToObserves(){
+        TrackingService.isTracking.observe(this, Observer {
+            updateTracking(it)
+        })
+
+        TrackingService.pathPoint.observe(this, Observer {
+            pathPoint = it
+            addLatestPolyline()
+            moveCameraToUser()
+        })
+
+        TrackingService.timeRunInMillis.observe(this, Observer {
+            curTimeInMillis = it
+            val formattedTime = TrackingUtility.getFormattedStopWatchTime(curTimeInMillis, true)
+            binding.durationTv.text = formattedTime
+        })
+    }
+
+    private fun toggleRun(){
+        if (isTracking){
+            sendCommendToService(ACTION_PAUSE_SERVICE)
+        }else {
+            sendCommendToService(ACTION_START_OR_RESUME_SERVICE)
+        }
+    }
+
+    private fun updateTracking(isTracking: Boolean){
+        this.isTracking = isTracking
+        if (!isTracking){
+            binding.btnToggleRun.text = "Start"
+            binding.finishRunBtn.isEnabled = false
+        }else {
+            binding.btnToggleRun.text = "Stop"
+            binding.finishRunBtn.isEnabled = true
+        }
+    }
+
+    private fun moveCameraToUser(){
+        if (pathPoint.isNotEmpty() && pathPoint.last().isNotEmpty()){
+            map?.animateCamera(
+                    CameraUpdateFactory.newLatLngZoom(
+                            pathPoint.last().last(),
+                            15f
+                    )
+            )
+        }
+    }
+
+    private fun addAllPolyLines(){
+        for (polyline in pathPoint){
+            val polylineOptions = PolylineOptions()
+                    .color(POLYLINE_COLOR)
+                    .width(POLYLINE_WIDTH)
+                    .addAll(polyline)
+            map?.addPolyline(polylineOptions)
+        }
+    }
+
+    private fun addLatestPolyline(){
+        if (pathPoint.isNotEmpty() && pathPoint.last().size > 1){
+            val preLastLatLng = pathPoint.last()[pathPoint.last().size - 2]
+            val lastLatLng = pathPoint.last().last()
+            val polylineOptions = PolylineOptions()
+                    .color(POLYLINE_COLOR)
+                    .width(POLYLINE_WIDTH)
+                    .add(preLastLatLng)
+                    .add(lastLatLng)
+            map?.addPolyline(polylineOptions)
+        }
+    }
+
+    private fun sendCommendToService(action: String){
+        Intent(this, TrackingService::class.java).also {
+            it.action = action
+            startService(it)
         }
     }
 
