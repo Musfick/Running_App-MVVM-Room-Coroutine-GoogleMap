@@ -7,18 +7,21 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
 import androidx.lifecycle.Observer
+import com.foxhole.runningapp.MainActivity
 import com.foxhole.runningapp.R
 import com.foxhole.runningapp.databinding.ActivityRunBinding
 import com.foxhole.runningapp.services.Polyline
 import com.foxhole.runningapp.services.TrackingService
 import com.foxhole.runningapp.utils.Constants.ACTION_PAUSE_SERVICE
 import com.foxhole.runningapp.utils.Constants.ACTION_START_OR_RESUME_SERVICE
+import com.foxhole.runningapp.utils.Constants.ACTION_STOP_SERVICE
 import com.foxhole.runningapp.utils.Constants.POLYLINE_COLOR
 import com.foxhole.runningapp.utils.Constants.POLYLINE_WIDTH
 import com.foxhole.runningapp.utils.TrackingUtility
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.PolylineOptions
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class RunActivity : AppCompatActivity() {
 
@@ -45,6 +48,14 @@ class RunActivity : AppCompatActivity() {
             toggleRun()
         }
         subscribeToObserves()
+
+        binding.cancelButton.setOnClickListener {
+            showCancelTrackingDialog()
+        }
+
+        if (curTimeInMillis > 0L){
+            binding.cancelButton.visibility = View.VISIBLE
+        }
     }
 
     private fun subscribeToObserves(){
@@ -67,9 +78,32 @@ class RunActivity : AppCompatActivity() {
 
     private fun toggleRun(){
         if (isTracking){
+            binding.cancelButton.visibility = View.VISIBLE
             sendCommendToService(ACTION_PAUSE_SERVICE)
         }else {
             sendCommendToService(ACTION_START_OR_RESUME_SERVICE)
+        }
+    }
+
+    private fun showCancelTrackingDialog(){
+        val dialog = MaterialAlertDialogBuilder(this)
+                .setTitle("Cancel the Run ?")
+                .setMessage("Are you sure to cancel the current run and delete all its data")
+                .setPositiveButton("Yes"){ _, _ ->
+                    stopRun()
+                }
+                .setNegativeButton("No"){ dialogInterface, _ ->
+                    dialogInterface.cancel()
+                }
+                .create()
+        dialog.show()
+    }
+
+    private fun stopRun(){
+        sendCommendToService(ACTION_STOP_SERVICE)
+        Intent(this, MainActivity::class.java).also {
+            startActivity(it)
+            finish()
         }
     }
 
@@ -79,6 +113,7 @@ class RunActivity : AppCompatActivity() {
             binding.btnToggleRun.text = "Start"
             binding.finishRunBtn.isEnabled = false
         }else {
+            binding.cancelButton.visibility = View.VISIBLE
             binding.btnToggleRun.text = "Stop"
             binding.finishRunBtn.isEnabled = true
         }
